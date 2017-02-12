@@ -1,0 +1,276 @@
+---
+title: "Implementation of Kirby and Sonderegger (2015)"
+author: "Computational Approaches to Sound Change"
+date: "LSA Institute 2015"
+output:
+  html_document:
+    number_sections: yes
+  pdf_document: default
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=6, fig.height=4, warning=FALSE)
+```
+
+This document introduces our model of the evolution of a phonetic trait in a population setting, which is contained in the files `ksSims.R` and `ksPlots.R`.  You should:
+
+- make sure you can carry out the commands shown here (listed in grey boxes) for running simulations and visualizing the results, in an R session where these two files are in the working directory.  (If they aren't, you'll need to modify the `source` commands below.)  
+- make sure you can figure out the commands for running/visualizing simulations where these are only described verbally (Example 1.2, 1.3, etc.).  
+
+The objectives are to:
+
+- understand how to use this code
+- begin to get a sense of how the Kirby & Sonderegger model works: in particular, how the values of different parameters translate into differences in the population-level evolution of a continuous trait.
+
+This serves as preparation for Thursday's lab (7/30), where you will work on one of two kinds of extension:
+
+1. Exploring the parameter space: what model behavior results as an interesting subset of parameters are varied?
+
+2. Extend the model: edit the code to handle additional functionality (such as non-random social network structure), and see what new behavior results.
+
+**Important**: As with the de Boer paper, should be able to get through this worksheet *without* opening (i.e., editing) the code files (`ksSims.R`,`ksPlots.R`), or understanding their contents! `ksSims.R` is the code that actually runs the simulation, while `ksPlots.R` defines specialized plotting functions. You will make use of these functions in R by importing both files using a `source` command, as described below.)
+
+**Note on running time**
+ 
+As number of agents, number of examples, and number of generations increase, running times for these models can become **extremely** long very quickly. If doing exploratory parameter manipulation, it's often best to try with smallish numbers of learners (say, 100) and examples ( 100) for a reasonable number of generations (at least 500); you can run several of these relatively quickly, to get a sense of whether or not the general behavior seems relatively stable, and at what number of generations the population seems to stabilize. 
+
+# Preliminaries 
+
+The code for this simulation is all in R. First, load the functions in `ksSims.R` and the plotting functions in `ksPlots.R`:
+
+
+```{r}
+setwd('/Users/jkirby/Documents/Projects/evomod/chicago/lsa2015/code/ks/')
+source("ksSims.R")
+source("ksPlots.R")
+```
+
+You can check that all the functions have been loaded by looking in the **Environment** tab (in RStudio) and/or by typing `ls()` at the R prompt. If you don't have any other objects loaded, it should look something like this:
+
+```{r}
+ls()
+```
+
+## `runSim()`
+
+The main function is `runSim()`, which can run simulations with single or multiple teachers for several different learning algorithms (it also contains a relatively simple hook to add your own). 
+
+* `nGens`: Number of generations
+* `nExamples`: Number of examples received by each learner
+* `nLearners`: Number of learners per generation
+* `muA`, `sigA`: parameters of /a/ normal distribution
+* `muI`, `sigI`: parameters of /i/ normal distribution
+* `teachers`: how many teachers from previous generation? (character string; options: `single`, `some` or `all`)
+* `nTeachers`:  exact number of teachers from previous generation (only works with `teachers = 'some'`, must be 1$<$ \_\_ $<$ `nLearners`)
+* `initialDist`, `distParams`: distribution of $c$ in the initial generation (string, list)
+    + `initialDist='gaussian'`: normal (Gaussian) distribution with parameters `cMuStart` and `cSigStart` (string, list)
+    + `initialDist='custom'`: initial $c$ values supplied as a vector of length `nLearners'
+* `algorithm`, `algParams`: learner's algorithm $A$ applied to data (string, list)
+    + `simple`: no prior
+    + `gaussianPrior`: MAP/EV using gaussian prior with SD param $\tau$
+    + `quadraticPrior`: MAP using quadratic prior with shape param $a$, lenition param $\lambda$, SD $\omega$, lenition applied to `biasProp` (0-1) fraction of productions
+* `storeIvl`: store estimated PDF of $c$ every `storeIvl` generations (integer; should be a factor of `nGens`)
+
+There are also a few other options that you shouldn't need to modify, but which may be useful if you make use of the code later:
+
+* `use.optimize`:  use `optimize()` to maximize posterior in `quadraticPrior` algorithm (TRUE), vs. using grid search (FALSE). `optimize()` is faster, but only $\approx$ guaranteed to find optimum of a unimodal function
+* `stopTest`: If TRUE, for a given run, after `window` or more generations, check every generation whether range of mean, 5th percentile, and 95th percentile are (all) less than `thresh`. If so, abort this run.
+* `window`: see `stopTest` (integer)
+* `thresh`: see `stopTest` (integer)
+* `writeFile`: write the data out as a file (boolean; values `TRUE` or `FALSE`)
+* `writeFinal`: write just the parameters and the final result. Note that `writeFile` and `writeFinal` cannot **both** be TRUE (although both may be FALSE).
+* `fPrefix`: directory to write the file to (NB: need the trailing slash)
+
+
+## Simulation basics 
+
+If you simply call `runSim()` without any arguments
+
+```{r, eval=FALSE}
+runSim()
+```
+
+you will run a simulation with the default parameter settings. This is equivalent to 
+
+```{r, eval=FALSE}
+runSim <- function(nGens=500, nExamples = 100, nLearners = 1000,
+                   muA = 730, sigA = 50, muI=530, sigI=50,
+                   teachers = 'single', nTeachers = NA, initialDist = 'gaussian',
+                   distParams=list(cMuStart = 10, cSigStart = 10),
+                   algorithm = 'simple', algParams = list(lambda=0.0, omega=1.0, biasProp=0),
+                   storeIvl = 5, use.optimize=TRUE,
+                   stopTest = FALSE, window = 100, thresh = 2,
+                   writeFile = FALSE, writeFinal=FALSE, fPrefix = '/Users/morgan/Desktop/runs/')
+```
+
+If `writeFile` or `writeFinal` are changed to TRUE , the simulation will try to write the resulting dataframe to the file `'/Users/jkirby/Desktop/runs'`. Since you probably don't have a user named `jkirby` you will want to change this, or leave both `writeFile = FALSE` and `writeFinal = FALSE`. Unless otherwise specified, all parameters stay at their default values.
+
+## Naive learners, single teacher
+
+To get comfortable with the code and the plotting functions, let's run a simulation over 500 generations, with 500 agents per generation who are trained on 100 examples each, using the 'naive' learning algorithm (i.e., no prior) with no lenition bias and assuming a normal initial distribution of $c$:
+
+```{r, cache=TRUE, results='hide'}
+sim1 <- runSim(nGens=500, nLearners=500, nExamples=100, initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10))
+```
+
+Even with this fairly small number of learners, the simulation will take several minutes to run. The progress bar gives you an idea of how long you have to wait.
+
+After the simulation completes, the results will be stored in `sim1`. This is not a simple data frame, but a data type called a *list*. You can see the elements of the list and their data types by typing
+
+```{r}
+summary(sim1)
+```
+
+The simulation returns a list with two data frames, one containing summary statistics (`summaryStatsDf`) and the other containing output needed to make density plots (`densityDf`).  You can access the elements of the list using the `$` syntax, e.g.
+
+```{r}
+summary(sim1$summaryStatsDf)
+```
+
+The summaries are easier to see as plots. In particular, we can use the output data frames to plot the mean and standard deviation of $c$ in the population over time:
+
+```{r}
+## plot mean +- 1.96*standard deviation of distribution of c over time
+meanSdPlot(sim1)
+```
+
+or a PDF of the distribution of $c$ over the range of the difference between the means of $a$ and $i$:
+
+```{r}
+## plot PDF of distribution of c *in [0,200]* over time
+densityPlot(sim1)
+```
+
+500 generations isn't really long enough to see what's going on very clearly, but it looks like the mean is staying fairly stable while the variance (at the population level, remember) gets ever larger.
+
+## Naive learners, multiple teachers
+
+Let's try the same simulation, except where each learner now gets their training data from multiple teachers, instead of just a single teacher:
+
+```{r, cache=TRUE, results='hide'}
+sim2 <- runSim(nGens=500, nLearners=500, nExamples=100, teachers='all', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10))
+```
+
+```{r}
+meanSdPlot(sim2)
+densityPlot(sim2)
+```
+
+Since there is much less variation in the mean/SD plot, the $y$ axis scale is quite different from that of the single teacher run. (You can change this by adding a `ylim` argument, e.g. `+ ylim(-300,200)` to the `meanSdPlot()` call.) The density plot, on the other hand, is on the same scale as before, and it is immediately clear that there is much less variation in the population-level distribution of the $c$ parameter.
+
+## Complex prior models
+
+The most realistic prior discussed in the paper is the complex or *quadratic* prior, so we'll focus on this for the rest of the worksheet. We consider the cases discussed in Section 5 of the [paper](http://arxiv.org/abs/1507.04420) with slightly different parameter settings (in particular, fewer learners and examples for fewer generations, in order to keep runtimes down).
+
+### Case 1: strong prior, weak channel bias ($a=0.001, \lambda=0.25$)
+
+The first case is a simulation where learners come equipped with a strong prior (small $a$) but where there is weak channel bias (small $\lambda$). We can compare the case of one teacher:
+
+```{r, cache=TRUE, results='hide'}
+case1_one <- runSim(nGens=500, nLearners=500, nExamples=100, teachers='single', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=0.25, a=0.001, omega=1.0))
+densityPlot(case1_one)
+```
+
+to that of all teachers:
+
+```{r, cache=TRUE, results='hide'}
+case1_all<- runSim(nGens=500, nLearners=500, nExamples=100, teachers='all', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=0.25, a=0.001, omega=1.0))
+densityPlot(case1_all)
+```
+
+**Q**: what is the primary difference between the single-teacher and multiple-teacher cases? How do these runs (with smaller values for `nGens`, `nLearners` and `nExamples`) compare to those presented in the paper?
+
+### Case 2: strong prior, strong channel bias ($a=0.001, \lambda=4$)
+
+The second case is a simulation where learners come equipped with a strong prior (small $a$) as well as a strong channel bias (large $\lambda$). Again, it is instructive to compare the case of one teacher:
+
+```{r, cache=TRUE, results='hide'}
+case2_one <- runSim(nGens=500, nLearners=500, nExamples=100, teachers='single', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=4, a=0.001, omega=1.0))
+densityPlot(case2_one)
+```
+
+to that of all teachers:
+
+```{r, cache=TRUE, results='hide'}
+case2_all<- runSim(nGens=500, nLearners=500, nExamples=100, teachers='all', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=4, a=0.001, omega=1.0))
+densityPlot(case2_all)
+```
+
+**Q**: Is there a difference between the single-teacher and multiple-teacher cases? How do these runs (with smaller values for `nGens`, `nLearners` and `nExamples`) compare to those presented in the paper?
+
+
+### Case 3: weak prior, weak channel bias ($a=0.5, \lambda=0$)
+
+The third case is a simulation where learners have a weak prior ($a$ closer to 1) and weak channel bias ($\lambda=0$). 
+
+```{r, cache=TRUE, results='hide'}
+case3_one <- runSim(nGens=500, nLearners=500, nExamples=100, teachers='single', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=0, a=0.5, omega=1.0))
+densityPlot(case3_one)
+```
+
+```{r, cache=TRUE, results='hide'}
+case3_all<- runSim(nGens=500, nLearners=500, nExamples=100, teachers='all', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=0, a=0.5, omega=1.0))
+densityPlot(case3_all)
+```
+
+**Q**: what is the primary difference between the single-teacher and multiple-teacher cases? How do these runs (with smaller values for `nGens`, `nLearners` and `nExamples`) compare to those presented in the paper?
+
+
+### Case 4: strong prior, medium channel bias ($a=0.001, \lambda=1.3$)
+
+```{r, cache=TRUE, results='hide'}
+case4_one <- runSim(nGens=500, nLearners=500, nExamples=100, teachers='single', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=1.3, a=0.001, omega=1.0))
+densityPlot(case4_one)
+```
+
+```{r, cache=TRUE, results='hide'}
+case4_all<- runSim(nGens=500, nLearners=500, nExamples=100, teachers='all', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=1.3, a=0.001, omega=1.0))
+densityPlot(case4_all)
+```
+
+**Q**: What is the relationship between the single- and multiple-teacher cases? Is the behavior of one predictable from that of the other?
+
+### Case 5: medium prior, medium channel bias ($a=0.01, \lambda=1.3$)
+
+```{r, cache=TRUE, results='hide'}
+case5_one <- runSim(nGens=500, nLearners=500, nExamples=100, teachers='single', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=1.3, a=0.01, omega=1.0))
+densityPlot(case5_one)
+```
+
+```{r, cache=TRUE, results='hide'}
+case5_all<- runSim(nGens=500, nLearners=500, nExamples=100, teachers='all', initialDist='gaussian', distParams=list(cMuStart=10,cSigStart=10), algorithm='quadraticPrior', algParams=list(biasProp=1, lambda=1.3, a=0.01, omega=1.0))
+densityPlot(case5_all)
+```
+
+**Q**: What is the qualitative difference in the evolution of $c$ between cases 4 and 5?
+
+## Multiple cores
+
+If you have access to a machine with multiple cores (e.g. many laptops from the past few years), you can do multiple runs in parallel in a single R session, which can help cut down on the time it takes to explore the parameter space.
+
+Below, we show an example where we sweep the bias factor parameter ($\lambda$) over five values (2, 4, 5, 6, 10), using the quadratic prior with $a=0.01$, `biasProp`=1, $\omega=1.0$ and a single teacher:
+
+```{r, eval=FALSE}
+library(foreach)
+library(doMC)
+registerDoMC(4) ## change this depending on how many cores you have/can spare
+
+argVec <- list(list(nGens=500, nLearners=500, teachers = 'single', algorithm = 'quadraticPrior', algParams=list(biasProp=1, lambda=2, a=0.01, omega=1.0), distParams=list(cMuStart=10, cSigStart=10),writeFile=TRUE),
+               list(nGens=500, nLearners=500, teachers = 'single', algorithm = 'quadraticPrior', algParams=list(biasProp=1, lambda=4, a=0.01, omega=1.0), distParams=list(cMuStart=10, cSigStart=10),writeFile=TRUE),
+               list(nGens=500, nLearners=500, teachers = 'single', algorithm = 'quadraticPrior', algParams=list(biasProp=1, lambda=5, a=0.01, omega=1.0), distParams=list(cMuStart=10, cSigStart=10),writeFile=TRUE),
+               list(nGens=500, nLearners=500, teachers = 'single', algorithm = 'quadraticPrior', algParams=list(biasProp=1, lambda=7, a=0.01, omega=1.0), distParams=list(cMuStart=10, cSigStart=10),writeFile=TRUE),
+               list(nGens=500, nLearners=500, teachers = 'single', algorithm = 'quadraticPrior', algParams=list(biasProp=1, lambda=10, a=0.01, omega=1.0), distParams=list(cMuStart=10, cSigStart=10),writeFile=TRUE)
+               )
+
+## the result of lambda=2 is in runs[[1]], etc.
+runs <- foreach(i=1:length(argVec)) %dopar% {
+  do.call("runSim", as.list(argVec[[i]]))
+}
+
+## plot individual facets
+densityPlot(runs[[1]]) # lambda = 2
+densityPlot(runs[[2]]) # lambda = 4
+## etc
+```
+

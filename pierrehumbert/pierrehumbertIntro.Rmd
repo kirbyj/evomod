@@ -1,0 +1,304 @@
+---
+title: "Implementation of Pierrehumbert (2001)"
+author: "Computational Approaches to Sound Change"
+date: "LSA Institute 2015"
+output:
+ pdf_document: default
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=6, fig.height=4, warning=FALSE)
+```
+
+This document introduces our implementation of Pierrehumbert's 2001 model of the evolution of one and two phonetic categories, which are in `pierrehumbertOne.R` and `pierrehumbertTwo.R`. The objectives are to:
+
+- understand how to use this code
+- begin to get a sense of how Pierrehumbert's model works: how the values of different parameters translate into category evolution over time.
+
+To this end, we suggest that you:
+
+- make sure you can carry out the commands shown here (listed in grey boxes) for running simulations and visualizing the results, in an R session where these two files are in the working directory. (If they aren't, you'll need to modify the `source` commands below.) 
+- make sure you can figure out the commands for running/visualizing simulations where these are only described verbally (Example 1.2, 1.3, etc.). 
+- work through this whole document. (Though it looks long, it's mostly just verbose.)
+
+
+**Note on running time**
+
+Because an exemplar model of production/perception involves computation over a large dataset at each time point (all remembered exemplars), these simulations take some time to run (approximately 45 seconds for each run below, on a 2014 MacBook Pro 2.8 GHz Intel Core i5), which can add up if you are doing a lot of runs.
+
+
+# Single category
+
+First, load the functions in `pierrehumbertOne.R`:
+```{r}
+source("pierrehumbertOne.R")
+```
+
+The main function is `pierrehumbertOneCat()`, which runs a single single-category simulation of Pierrehumbert's model. This function's arguments are:
+
+- `tau`: memory decay time P's $\tau$ (positive integer; P: 2000)
+- `windowThresh`: window threshold (positive number; P: 0.05)
+- `lambda`: lenition bias; P's $\lambda$ (number)
+- `E`: production noise from uniform distribution between -E and E; P's $\epsilon$ (positive number; P: 0.1)
+- `n`: number of iterations (production/perception steps) (positive integer; default: 10000)
+- `entrenchment`: do entrenchment? (`TRUE` or `FALSE`)
+- `ntrench`: number of closest exemplars to consider; P's $n_{\text{trench}}$ (positive integer; P: 500)
+- `cutoff`: number of most recent exemplars to keep. Set to -1 to keep all exemplars, otherwise a positive integer (P: -1)
+- `initialValue`: initial value of the "phonetic character" for the category (any number; P: 1)
+- `storeIvl`: store category structure every `storeIvl` steps, for plotting distributions later (positive integer)
+
+
+## Example 1.1
+
+Let's first run a simulation of a single category's evolution over time, in the case without lenition or entrenchment.
+
+This code:
+```{r,eval=FALSE,cache=TRUE}
+outputDf <- pierrehumbertOneCat(tau=2000, windowThresh=0.05, lambda=0, E=0.1, n=5000, entrenchment=FALSE, storeIvl=2000)
+
+```
+
+runs such a simulation, with:
+
+- `tau`=2000
+- `windowThresh` = 0.05
+- `E`=0.1 (as in Pierrehumbert's single-category simulations)
+
+for 10000 steps. The results are stored in a data frame named `outputDf`. The value for `storeIvl` controls at what timestep a set of results is stored. in this example, where `n`=10000 and `storeIvl`=2000, the memory state is stored at 5 timesteps: 2000, 4000, 6000, 8000, and
+10000. 
+
+Running the code above in R (i.e., pasting the line of code into your R session), you should see something like this:
+```{r, cache=TRUE, echo=FALSE}
+outputDf <- pierrehumbertOneCat(tau=2000, windowThresh=0.05, lambda=0, E=0.1, n=10000, entrenchment=FALSE, storeIvl=2000)
+```
+
+The `score=0...` message is printed every time there are *no* exemplars found within the production window. Thus, you won't see these messages in exactly the same places when you run the code as where they are above. (Why not?)
+
+## Plotting results
+
+`pierrehumbertOne.R` also includes some functions to visualize the results of a simulation (stored in `outputDf`, in the example above). These functions are wrappers to make plots using the `ggplot2` package. 
+
+`oneCatEvoPlot` plots the distribution of the phonetic character over time:
+```{r}
+oneCatEvoPlot(outputDf, facet=FALSE)
+```
+
+Setting the `facet` argument to `TRUE` (the default) will plot each curve in its own window:
+```{r}
+oneCatEvoPlot(outputDf)
+```
+
+while setting it to `FALSE` (as above) produces an overplot.
+
+**Q**: What is visually clear about this run when you plot the data in one way, but not the other?)
+
+
+The functions `oneCatMeanPlot` and `oneCatVariancePlot` make plots to visualize the evolution of the (memory-weighted) mean and variance over time.
+
+```{r}
+oneCatMeanPlot(outputDf)
+```
+
+
+```{r}
+oneCatVariancePlot(outputDf)
+```
+
+**Q**: Does each plot look like you would expect given the simulation parameters? If not, why not?
+
+
+
+
+## Example 1.2
+
+
+Let's now run a single-category simulation with entrenchment and lenition, with the following parameters:
+
+- `tau`=2000
+- window width=0.05, 
+- noise=0.1 (as in Pierrehumbert single-category simulations)
+- lenition of 0.01
+- entrenchment over 100 exemplars
+- `n` = 10000
+- store the full exemplar list every 2000 timesteps (as in Example 1.1)
+
+Run this simulation, and store the results in a data frame named `outputDf2`. 
+
+Note that in this example, where `entrenchment=TRUE`, an additional parameter must be specified compared to Example 1.1: `ntrench`, the number of exemplars closest to the production target which are averaged over to produce a new target.
+
+```{r,cache=TRUE, echo=FALSE, include=FALSE, cache=TRUE}
+outputDf2 <- pierrehumbertOneCat(tau=2000, windowThresh=0.05, lambda=0.01, E=0.1, n=10000, entrenchment=TRUE, ntrench=100, storeIvl=2000)
+```
+
+
+You should then be able to make these plots, visualizing the results:
+```{r}
+oneCatEvoPlot(outputDf2, facet=FALSE)
+```
+```{r}
+oneCatMeanPlot(outputDf2)
+```
+```{r}
+oneCatVariancePlot(outputDf2)
+```
+
+**Q**: What are some ways these plots look different from the analogous plots for Example 1.1? What is behind each difference?
+
+
+## Example 1.3
+
+In Example 1.2, we did not see the expected behavior of the variance over time (it should stabilize). We now check whether this might be due to simply not running the simulation for long enough, relative to the decay time ($\tau$), which intuitively determines the timescale over which changes in category structure happen (why?).
+
+Run a simulation that is the same as Example 1.2, except that `tau`=100, and store the results in `outputDf3`.
+
+```{r,include=FALSE,echo=FALSE, cache=TRUE}
+outputDf3 <- pierrehumbertOneCat(tau=100, windowThresh=0.05, lambda=0.01, E=0.1, n=10000, entrenchment=TRUE, ntrench=100, storeIvl=2000)
+```
+
+Plotting the results:
+```{r}
+oneCatEvoPlot(outputDf3, facet=FALSE)
+```
+```{r}
+oneCatMeanPlot(outputDf3)
+```
+```{r}
+oneCatVariancePlot(outputDf3)
+```
+
+**Q**: Do we see the desired behavior now? How has changing $\tau$ affected the evolution of the category, and why?
+
+
+## Example 1.4
+
+To make sure that we understand the effect of varying `tau`, let's run the same simulation as in Example 1.3, but with `tau` now even smaller (set `tau` = 50). Once you've done this, generate the analogous plots visualizing its results:
+
+```{r, echo=FALSE, include=FALSE, cache=TRUE}
+outputDf4 <- pierrehumbertOneCat(tau=50, windowThresh=0.05, lambda=0.01, E=0.1, n=10000, entrenchment=TRUE, ntrench=100, storeIvl=2000)
+```
+
+```{r, echo=FALSE}
+oneCatEvoPlot(outputDf4, facet=F)
+oneCatMeanPlot(outputDf4)
+oneCatVariancePlot(outputDf4)
+```
+
+**Q**: What is different about these results from those of Example 1.3? Why does decreasing `tau` result in these differences?
+
+## Simulation results format
+
+Note that the output data frames (outputDf, outputDf2, etc.) are actually lists containing more than one data frame. If you want to examine the contents of the individual data frames, you can use the `$` syntax, e.g.
+
+```{r}
+summary(outputDf$summaryDf)
+summary(outputDf$meanVarDf)
+```
+
+
+# Two categories
+
+Load the functions in `pierrehumbertTwo.R`:
+```{r}
+source("pierrehumbertTwo.R")
+```
+
+The main function is `pierrehumbertTwoCat()`, which runs a single single-category simulation of Pierrehumbert's model. This function's arguments are the same as for the single-category case, except:
+
+- `p`: production probability $p$ of picking $c_1$ (number between 0 and 1)
+
+- `lambda`: now a list of lenition biases for each category (e.g. list(c1=0,c2=0) for no lenition)
+
+- `initialValues`: initial value of the 'phonetic character' for each category (vector, i.e. c(0,1))
+
+
+## Example 2.1
+
+
+Let's first run a simulation of the evolution of two categories over time, in the case without lenition or entrenchment.
+
+This code:
+```{r, cache=TRUE, eval=TRUE, results='hide'}
+outputDf5 <- pierrehumbertTwoCat(tau=2000, windowThresh=0.05, n=10000, lambda=list(c1=0, c2=0), p=0.5, E=0.1, initialValues=c(0,1), entrenchment=FALSE, storeIvl=2000)
+```
+runs a two-category simulation with:
+
+- initial category means at 0 and 1
+- equal category frequencies (`p`=0.5)
+- `tau`=2000
+- window width = 0.05
+- noise = 0.1
+- no entrenchment
+- no lenition
+
+for 10000 steps, with the memory state stored at 2000, 4000, ..., 10000 steps, and the results stored in `outputDf5`.
+
+## Plotting results
+
+`pierrehumbertTwo.R` also contains functions for plotting simulation results.
+
+To plot the distribtion of the phonetic character for each category at 2000, 4000, 6000, 10000 steps:
+
+```{r}
+twoCatEvoPlot(outputDf5, times=c(2000, 4000, 6000, 10000))
+```
+
+the `facet` parameter has the same effect as for `oneCatEvoPlot`.
+
+
+
+`twoCatMeanDiffPlot` plots the evolution of the difference in (memory-weighted) category means over time:
+
+```{r}
+twoCatMeanDiffPlot(outputDf5)
+```
+
+twoCatMeanPlot and twoCatVariancePlot plot the evolution of the (weighted) mean and variance of the categories over time
+
+```{r}
+twoCatMeanPlot(outputDf5)
+```
+```{r}
+twoCatVariancePlot(outputDf5)
+```
+
+**Q**: What do you think would happen if the simulation were allowed to keep running ? In particular, would the categories merge, or stay distinct? Try a longer simulation (`n`= 50000 or 100000, say) to check your intuition.
+
+
+
+## Example 2.2
+
+We now replicate Pierrehumbert's "neutralization" example: the lenition + entrenchment model resulting in Fig. 5 of Pierrehumbert (2001). Parameters of this simulation are:
+
+- Unmarked category 3x more likely than the marked category (what is `p`?)
+- lenition = -0.1 for the marked category, 0 for the unmarked category
+- entrenchment present, with $n_{trench}$=500
+- `n`=15000
+
+and all other parameters as in Example 2.1. 
+
+Run this simulation, and store the result in `outputDf6`.
+
+
+```{r, include=FALSE, echo=FALSE, cache=TRUE}
+outputDf6 <- pierrehumbertTwoCat(tau=2000, windowThresh=0.05, n=15000, lambda=list(c1=0, c2=-0.1), p=0.75, E=0.1, initialValues=c(0,1), cutoff=10000, entrenchment=TRUE, ntrench=500, storeIvl=2000)
+```
+
+Now, plot the distribution of the phonetic character for each category at 2000, 4000, 10000, and 15000 steps:
+```{r}
+twoCatEvoPlot(outputDf6, times=c(2000, 4000, 10000, 15000))
+```
+
+Plots of mean difference, plus mean and variance of each category over time:
+
+```{r}
+twoCatMeanDiffPlot(outputDf6)
+```
+```{r}
+twoCatMeanPlot(outputDf6)
+```
+```{r}
+twoCatVariancePlot(outputDf6)
+```
+
+**Q**: Why does the variance of $c_2$ increase, then decrease? What do you think would happen to the variances if the simulation were kept running for longer?

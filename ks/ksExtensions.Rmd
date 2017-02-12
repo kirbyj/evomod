@@ -1,0 +1,129 @@
+---
+title: "Extensions of Kirby and Sonderegger (2015)"
+author: "Computational Approaches to Sound Change"
+date: "LSA Institute 2015"
+output:
+  pdf_document: default
+  html_document:
+    number_sections: yes
+---
+
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=6, fig.height=4, warning=FALSE)
+```
+
+
+# Parameters
+
+This section refers to the code in `ksSims.R`.  
+
+The simulations described in Kirby & Sonderegger (2015) have the following parameters describing the behavior of agents: how they learn, population structure, etc.
+
+* $n_{gens}$: Number of generations
+* $n$: Number of examples received by each learner
+* $n_{gensize}$: Number of learners per generation
+* $\mu_a$, $\sigma_a$ : parameters of /a/ normal distribution
+* $\mu_i$, $\sigma_i$: parameters of /i/ normal distribution
+* $n_{teachers}$: how many teachers does each agent learn from?  
+* Distribution of $c$ in the initial generation (Gaussian or custom)
+* $a$: parametrizes quadratic prior shape (closer to 0 $\implies$ more categorical)
+* $\lambda$: mean amount of lenition
+* $\omega$: SD of amount of lenition
+* Proportion of examples lenition applies to (`biasProp` in the implementation)
+
+Some of these correspond to more than one literal parameter in the code (see the `ksIntro` worksheet, or the comments in `ksSims.R`); for example $n_{teachers}$ corresponds to `teachers` and `nTeachers`.
+
+There are other parameters in the implementation (see the `ksIntro` worksheet), but they largely control logistical things about how the simulation is run and saved on your computer.
+
+
+# Extensions
+
+## Simplest
+
+These extensions involve exploring the parameter space. In each case, you should begin with an initial population where there is little coarticulation (as in the handout).  You can explore:
+
+* What is the effect of changing (one or more) parameter(s) on how mean and variance of the amount of coarticulation ($c$) in the 
+population evolve?  
+
+* What is the effect of changing parameters on the *stable state* of the mean and variance, if you let the simulation run for sufficiently long?  If the simulation shows stable coarticulation, does the average amount of coarticulation or its varaibility across the population change as you change your parameter(s)?   Can varying your parameter(s) lead to stability instead of change, or vice versa?
+
+Make sure to think about *why* you get the behavior you see in each case.
+
+
+1. **Number of examples.** What is the effect of varying $n$?  (This can be intuitively thought of as "frequency".)  Is there a sense in which increasing $n$ can make change more likely (as in many sound changes) or less likely (as in classic "analogical" changes)?
+
+
+2. **Variability and magnitude of lenition.**  What happens as you change the distribution from which the lenition parameter is drawn, by varying $\omega$?  You might find that the effect of varying $\omega$ also depends on the size of $\lambda$, so you should vary it as well.  (Intuitively, one possibility could be that even when there is very little lenition on average (low $\lambda$), it's possible for change to arise when $\omega$ is sufficiently large -- why?)
+
+3. **$a$, $\lambda$ and `biasProp`.**  Intuitively, lower $a$ promotes stability, higher $\lambda$ promotes change, and lowering `biasProb` weakens the effect of lenition. What is the relationship between these parameters (how do they "trade off") in determining the simulation outcome?
+
+
+## Slightly harder
+
+These ideas require modifications of the code (listed roughly in order of difficulty)
+
+4. **Horizontal transmission.** Implement "horizontal transmission", where learners in generation $n$ first learn from teachers in generation $n-1$, then learn from *each other*.
+
+5. **Multigenerational learning.**  Implement "grandparents": learners in generation $n$ draw teachers both from  generation $n-1$ and generation $n-2$.  (You could draw teachers randomly from each generation, or have a parameter that parametrizes how likely teachers from the previous generation are, relative to teachers from the second-to-last generation.)
+
+6. **Two genders.**  A very common findings in studies of language change in progress is that women lead the change. Implement a simple two-gender version of KS's model, corresponding to a very traditional society, to see if this or anything else interesting emerges:
+
+    * Each agent is male or female.
+  
+    * Each learner draws one male and one female parent (the "mother" and "father")
+  
+    * As a learner, an agent gets more data from the mother than from the father (you'll need to add a parameter quantifying how much more). However, male learners ("sons") get a higher proportion of data from the father than do female learners ("daughters").
+  
+    * (Note that you'll need to change how the data is stored, so that information about the distributions of $c$ for male agents and for female agents are stored separately. You'll also need to change the plotting functions to show how both distributions change over time.)
+  
+  
+## Beyond lenition
+
+Following work such as Pierrehumbert (2001), Kirby & Sonderegger (2015) assume that the "driving force" of sound change is lenition.  However, many cases of change are argued to be driven by other forces, such as:
+
+* *Dialect contact* between groups with different pronunciations of a sound, or more generally *network structure* specifying which members of a speech community are in contact with one another.
+
+* *Social weight/prestige*: different pronunciations may be more highly socially-valued. Similarly, productions coming from certain individual speakers, or members of certain social groups, may be more "prestigious".  In "change from above", a population shifts to use of the more "prestigious" variant.
+
+Implement one of these ideas, however you see fit.   (But crucially, without lenition: $\lambda = \omega = 0$).  Some specific suggestions:
+
+7. **Contact between little and full-coarticulation dialects.** Change the architecture so that there are two groups of agents in each generation, $A$ and $B$.  In the initial state, the distribution of $c$ in group A has mean near $\mu_a$, and the distribution of $c$ in group B has mean near $\mu_i$.   There are two additional parameters:
+    * `aProb`: probability that a learner in group B draws a given example from a teacher in group A.
+    * `bProb`:  same, for a learner in group A drawing from a teacher in group B.
+
+    In the limit of no contact, `aProb` = `bProb` = 0, and groups A/B maintain stable little/full coarticulation over time.  If `aProb` = `bProb` = 0.5, the simulation is the same as one with a single group without contact (why?).
+    
+    What happens as `aProb` and `bProb` are varied?  Is it possible to have *any* contact and maintain different "dialects", or is change inevitable?  How does the effect of contact differ depending on whether categoricality bias is strong (say $a = 0.01$) or weak (say $a = 0.5$)?
+    
+8. **Social weighting of pronunciations.** Change the architecture so that more coarticulated variants are more socially-valued: a token pronounced as $\mu_a$ has weight 1, a token pronounced as $\mu_i$ has weight $w_{max}$ (a parameter you specify, which is larger than 1), and pronounciations in between have a weight linearly interpolated between these values.  
+
+    We must still then decide how these weights affect the learner's inference of a coarticulation parameter ($c$).  Let $y_i$ be the observed value (F1) for the ith data point, and be $w_i$ be the weight of this pronunciation.  Now, transform the observed values as follows:
+    $$
+    y_i \leftarrow y_i \frac{n w_i}{\sum_{j=1}^{n} w_j}
+    $$
+    
+    It turns out that under this transform, the learner's estimate of $c$ when the prior is very weak ($a \approx 1$) is the *weighted average* of the (original) $y_i$.  So, this transformation is one sensical way to take social weighting of pronunciations into account.
+    
+    Setting $w_{max} = 1$ should give the same results as a simulation without social weighting of pronunciations.  What behavior results as $w_{max}$ is increased, beginning from a little-coarticulation state?  Can not coarticulating survive when this is "stigmatized"?
+    
+    
+    
+9. **Social weighting of teachers.** Change the architecture so that different teachers in generation $m$ are randomly assigned weights (again ranging from 1 to $w_{max}$), such that:
+    * Teachers who have a more coarticulated variant (higher $c$) tend to have a higher weight.
+    * (One way to do this is to randomly assign weights to teachers, such that the correlation between a teacher's $c$ and the teacher's assigned weight is $\rho$, which is a parameter of the simulation between 0 and 1.)
+
+    This simulates the situation where it is *individuals* who have prestige---productions from certain people are given more weight by learners---and prestige happens to line up with degree of coarticulation.  (This kind of accidental correlation is suggested as a possible explanation for actuation by Baker et al. (2011), an influential paper.)
+    
+    These weights are then used by learners in generation $m+1$.  That is, each time a learner gets an example, she associates with it the weight of the *teacher* who produced the example (regardless of how the example was produced).  Learners then infer a value of $c$ (from their $y_i$ and $w_i$ values) in the same way as in the "Social weighting of pronunciations" setting.
+    
+    Setting $w_{max} = 1$ and $\rho = 0$ should give the same results as a simulation without social weighting.  What happens as $w_{max}$ and $\rho$ are increased, beginning from a little-coarticulation state?  Can change be driven by the prestige of individual speakers?
+    
+    
+10. **Social weighting of groups.**   Similar to \#7, except that now pronunciations from the other group have a weight. You could parametrize this as two parameters, `aWeight` and `bWeight`, describing how valued data from the other group is; data from a learner's own group gets weight = 1.  A learner in group $B$ assigns weight `aWeight` to examples from group $A$ and weight 1 to examples from her own group, and similarly for a learner in group $A$.  The learner then infers a value of $c$ in the same way as in the "Social weighting of pronunciations" setting.
+
+    One situation to consider in this case is fixing `aProb`, `bProb`, and `a` such that the two groups maintain distinct distributions of $c$ over time *in the absence* of weighting.  Then, see what happens as you increase `aWeight` and `bWeight` away from 0. Can change be driven due to a *group* being more prestigious who happens to coarticulate more?
+
+
+
