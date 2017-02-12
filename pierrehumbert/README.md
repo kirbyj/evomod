@@ -9,8 +9,10 @@ The directory contains the following files:
 - ```pierrehumbertExamples.R```: instructions and examples
 - ```pierrehumbertIntro.Rmd```: R Markdown walkthrough of the implementation
 
-## Authors
-[James Kirby](j.kirby@ed.ac.uk)
 
-[Morgan Sonderegger](morgan.sonderegger@mcgill.ca)
+## Authors
+[James Kirby](http://lel.ed.ac.uk/~jkirby/)
+
+[Morgan Sonderegger](http://people.linguistics.mcgill.ca/~morgan/)
+
 

@@ -12,7 +12,6 @@ The directory contains the following files:
 
 
 ## Authors
-[James Kirby](j.kirby@ed.ac.uk)
+[James Kirby](http://lel.ed.ac.uk/~jkirby/)
 
-[Morgan Sonderegger](morgan.sonderegger@mcgill.ca)
-
+[Morgan Sonderegger](http://people.linguistics.mcgill.ca/~morgan/)

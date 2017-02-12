@@ -10,7 +10,7 @@ For these courses we also developed an implementation of the evolution of vowel 
 
 
 ## Authors
-[James Kirby](j.kirby@ed.ac.uk)
+[James Kirby](http://lel.ed.ac.uk/~jkirby/)
 
-[Morgan Sonderegger](morgan.sonderegger@mcgill.ca)
+[Morgan Sonderegger](http://people.linguistics.mcgill.ca/~morgan/)
 
